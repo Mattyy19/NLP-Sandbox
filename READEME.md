@@ -1,5 +1,6 @@
 ## NLP-Sandbox
-This repo will only be used to test and train different AI models.
+This repo will only be used to test and train different AI models. We are currently using "Wikipedia Top 100 Articles" as
+the main ZIM file for training. 
 ### Dependencies Needed
 1. Python 3.10 or lower
 2. pyzim (python-zim when installing)
@@ -7,3 +8,4 @@ This repo will only be used to test and train different AI models.
 4. sentence-transformers
 5. datasets
 6. torch
+7. transformers[torch]
