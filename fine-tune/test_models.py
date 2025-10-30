@@ -1,7 +1,7 @@
 from sentence_transformers import SentenceTransformer, util
 
 # Loads fine-tuned model, change depending on which model
-model = SentenceTransformer("minilm-L6-v2_wikipedia100_ft")
+model = SentenceTransformer("minilm-L12-v2_wikipedia100_ft")
 
 # Testing sample, change in the future
 corpus = [
