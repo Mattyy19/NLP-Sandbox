@@ -1,0 +1,25 @@
+plugins {
+    id 'java'
+}
+
+group = 'ca.greybox.uni'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.json:json:20230227'
+
+    // DJL core for NLP (PyTorch engine)
+    implementation 'ai.djl:api:0.26.0'
+    implementation 'ai.djl.pytorch:pytorch-engine:0.26.0'
+    implementation 'ai.djl.pytorch:pytorch-native-auto:2.1.0'
+    implementation 'ai.djl.huggingface:tokenizers:0.26.0'
+    implementation 'ai.djl.huggingface:model-zoo:0.26.0'
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}

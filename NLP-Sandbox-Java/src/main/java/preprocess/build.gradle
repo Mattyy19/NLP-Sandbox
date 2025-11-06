@@ -1,0 +1,20 @@
+plugins {
+    id 'java'
+}
+
+group = 'ca.greybox.uni'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.json:json:20230227'
+    implementation 'org.jsoup:jsoup:1.16.1'
+    implementation 'net.kiwix:jzim:0.3.1'
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
