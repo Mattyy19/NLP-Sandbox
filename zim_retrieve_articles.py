@@ -25,7 +25,7 @@ def clip(text: str, n:int) -> str:
     txt = text[:n].replace("\n", " ")
     return txt + ("..." if len(text) > n else "")
 
-def read_line_at(jsonl_path: str, btye_pos: int) -> dict:
+def read_line_at(jsonl_path: str, byte_pos: int) -> dict:
     with open(jsonl_path, "r", encoding = "utf-8") as f:
         f.seek(byte_pos)
         return json.loads(f.readline())
@@ -49,4 +49,25 @@ def build_load_offsets(jsonl_path: str, npy_path: str) -> np.ndarray:
     return arr
 
 def Main():
-    
+    ap = argparse.ArgumentParser(description="Retrieve full articles by FAISS doc IDs")
+    ap.add_argument("--ids", type=int, nargs="+", required=True, help="doc IDs to fetch")
+    ap.add_argument("--one-based", action="store_true", help="treat provided IDs as 1-based")
+    ap.add_argument("--snippet", type=int, default=240, help="chars to show (0 = full)")
+    args = ap.parse_args()
+
+    offsets = build_load_offsets(DATA_FILE, NPY_OFFSETS)
+    N = len(offsets)
+
+    ids = [i - 1 if args.one_based else i for i in args.ids]
+    for i in ids:
+        if i < 0 or i >= N:
+            raise ValueError(f"id {i} out of range 0..{N-1}")
+
+    for rank, i in enumerate(ids, 1):
+        row = read_line_at(DATA_FILE, offsets[i])
+        print(f"{rank}. {row['title']}  (id={i})")
+        print("   " + clip(row.get("text", ""), args.snippet))
+        print()
+
+if __name__ == "__main__":
+    Main()
