@@ -36,6 +36,10 @@ print(f"Saved TensorFlow model to {TF_SAVED_MODEL_DIR}")
 print("Converting SavedModel to TensorFlow Lite format...")
 converter = tf.lite.TFLiteConverter.from_saved_model(TF_SAVED_MODEL_DIR)
 converter.optimizations = [tf.lite.Optimize.DEFAULT]
+
+# Set the converter to use float16 for reduced model size and faster inference
+converter.target_spec.supported_types = [tf.float16]
+
 tflite_model = converter.convert()
 
 # 6. Save the .tflite model
