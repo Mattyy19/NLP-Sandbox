@@ -7,7 +7,7 @@ from nltk.tokenize import sent_tokenize
 nltk.download("punkt_tab")
 
 # Load dataset
-dataset = load_dataset("json", data_files="wp_phys_dataset.jsonl", split="train")
+dataset = load_dataset("json", data_files="wp_es_phys.jsonl", split="train")
 
 # Creates training pairs for fine tuning
 tests = []
@@ -31,7 +31,7 @@ for data in dataset:
 random.shuffle(tests)
 
 # Load model and prepare for fine tuning
-model = SentenceTransformer("pm-minilm-l12-v2_wp_100_chem_math_ft")
+model = SentenceTransformer("pm-minilm-L12-v2_wp_all_en_chem_molcell_math_es_ft")
 train_dataloader = DataLoader(tests, shuffle=True, batch_size=8, num_workers=0)
 train_loss = losses.MultipleNegativesRankingLoss(model)
 
@@ -43,5 +43,5 @@ model.fit(
 )
 
 # Save model
-model.save("pm-minilm-L12-v2_wp_all_en_ft")
+model.save("pm-minilm-L12-v2_wp_all_en_all_es_ft")
 print("Model saved")
