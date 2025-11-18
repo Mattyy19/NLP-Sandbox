@@ -15,8 +15,8 @@ except ImportError:
 
 
 # Config (change paths to match your structure)
-ZIM_FILE = r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\wikipedia_en_100_nopic_2025-09.zim"
-OUTPUT_FILE = r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\fine-tune\wikipedia_dataset.jsonl"
+ZIM_FILE = r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\wikipedia_fr_physics_mini_2025-10.zim"
+OUTPUT_FILE = r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\fine-tune\wp_fr_phys.jsonl"
 
 # Removes html tags, reference numbers and large whitespaces
 def clean_html(raw_html):
