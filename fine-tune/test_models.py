@@ -4,7 +4,7 @@ import os
 import time
 
 # Loads fine-tuned model, change depending on which model
-model = SentenceTransformer("minilm-L6-v2_wp_100_ft")
+model = SentenceTransformer("pm-minilm-L12-v2_wp_all_lang_ft")
 
 # Gets system process info to track cpu + ram
 process = psutil.Process(os.getpid())
@@ -12,8 +12,8 @@ cpu_count = psutil.cpu_count(logical=True)
 
 # Testing sample, change in the future
 corpus = [
-    "The 13th Amendment abolished slavery, this was after the Civil War.",
-    "Evolution is the change in heritable characteristics, initially theorized by Charles Darwin.",
+    "La 13ª Enmienda abolió la esclavitud, esto ocurrió después de la Guerra Civil.",
+    "L'évolution est le changement des caractéristiques héréditaires, initialement théorisée par Charles Darwin.",
     "Youtube is a website that allows people from around the world to watch and like videos, and subscribe to channels."
 ]
 corpus_embeddings = model.encode(corpus, convert_to_tensor=True)
