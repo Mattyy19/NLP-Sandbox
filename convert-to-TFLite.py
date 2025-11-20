@@ -15,7 +15,7 @@ def print_error(msg, err):
     traceback.print_exception(type(err), err, err.__traceback__)
     sys.exit(1)
 
-# 2. Load fine-tuned model from PyTorch checkpoint
+# 2. Load fine-tuned model
 print(f"Loading fine-tuned model from {FT_MODEL_PATH} ...")
 
 if not os.path.exists(FT_MODEL_PATH):
@@ -47,21 +47,32 @@ except Exception as e:
 
 # 4. Save as TensorFlow SavedModel
 print("Saving TensorFlow SavedModel...")
-tf.saved_model.save(embedding_model, TF_SAVED_MODEL_DIR)
+try:
+    tf.saved_model.save(embedding_model, TF_SAVED_MODEL_DIR)
+except Exception as e:
+    print_error("Failed to save TensorFlow SavedModel.", e)
+
 print(f"Saved TensorFlow model to {TF_SAVED_MODEL_DIR}")
 
 # 5. Convert to TensorFlow Lite
 print("Converting SavedModel to TensorFlow Lite format...")
-converter = tf.lite.TFLiteConverter.from_saved_model(TF_SAVED_MODEL_DIR)
-converter.optimizations = [tf.lite.Optimize.DEFAULT]
 
-# Set the converter to use float16 for reduced model size and faster inference
-converter.target_spec.supported_types = [tf.float16]
+try:
+    converter = tf.lite.TFLiteConverter.from_saved_model(TF_SAVED_MODEL_DIR)
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
 
-tflite_model = converter.convert()
+    # Set the converter to use float16 for reduced model size and faster inference
+    converter.target_spec.supported_types = [tf.float16]
+
+    tflite_model = converter.convert()
+except Exception as e:
+    print_error("Failed during TFLite conversion.")
 
 # 6. Save the .tflite model
-with open(TFLITE_MODEL_PATH, "wb") as f:
-    f.write(tflite_model)
+try:
+    with open(TFLITE_MODEL_PATH, "wb") as f:
+        f.write(tflite_model)
+except Exception as e:
+    print_error(f"Faied to write TFLite file to {TFLITE_MODEL_PATH.}", e)
 
 print(f"TFLite model saved as {TFLITE_MODEL_PATH}")
