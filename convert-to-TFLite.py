@@ -73,6 +73,6 @@ try:
     with open(TFLITE_MODEL_PATH, "wb") as f:
         f.write(tflite_model)
 except Exception as e:
-    print_error(f"Faied to write TFLite file to {TFLITE_MODEL_PATH.}", e)
+    print_error(f"Faied to write TFLite file to {TFLITE_MODEL_PATH}", e)
 
 print(f"TFLite model saved as {TFLITE_MODEL_PATH}")
