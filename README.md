@@ -13,6 +13,8 @@ the main ZIM file for training. The main branch is using all-MiniLM-L6-v2 as the
 9. numpy
 10. faiss
 11. tqdm
+12. langid
+13. sentencepiece
 ## Branches
 Main branch will only contain the code for developing and testing. The other branches will contain the actual model itself and any code that is specific to the model. 
 It will follow this naming scheme: [model name]_[zim file used to fine tune]_ft
