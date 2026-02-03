@@ -1,5 +1,5 @@
 # convert_to_tflite.py
-from transformers import AutoTokenizer, TFAutoModel
+from transformers import AutoTokenizer, TFAutoModel, AutoModel
 import tensorflow as tf
 import os
 import sys
@@ -25,6 +25,8 @@ if not os.path.exists(FT_MODEL_PATH):
 try:
     tf_model = TFAutoModel.from_pretrained(FT_MODEL_PATH, from_pt=True)
     tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+
+    tokenizer.save_pretrained("tokenizer/")
 except Exception as e:
     print_error("Failed to load model or tokenizer.", e)
 
