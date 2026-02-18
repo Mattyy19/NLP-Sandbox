@@ -1,1 +1,2 @@
 *.safetensors filter=lfs diff=lfs merge=lfs -text
+minilm_L12_all_lang_ft_fp16.tflite filter=lfs diff=lfs merge=lfs -text
