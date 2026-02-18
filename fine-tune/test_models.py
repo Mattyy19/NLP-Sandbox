@@ -2,6 +2,8 @@ from sentence_transformers import SentenceTransformer, util
 import psutil
 import os
 import time
+import json
+import math
 
 # Loads fine-tuned model, change depending on which model
 model = SentenceTransformer("pm-minilm-L12-v2_wp_all_lang_ft")
@@ -11,12 +13,30 @@ process = psutil.Process(os.getpid())
 cpu_count = psutil.cpu_count(logical=True)
 
 # Testing sample, change in the future
-corpus = [
-    "La 13ª Enmienda abolió la esclavitud, esto ocurrió después de la Guerra Civil.",
-    "L'évolution est le changement des caractéristiques héréditaires, initialement théorisée par Charles Darwin.",
-    "Youtube is a website that allows people from around the world to watch and like videos, and subscribe to channels."
-]
-corpus_embeddings = model.encode(corpus, convert_to_tensor=True)
+titles = []
+texts = []
+file_path = r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\fine-tune\wikipedia_dataset.jsonl"
+
+def parse_jsonl():
+    with open(file_path, "r", encoding="utf-8") as file:
+        for line in file:
+            line = line.strip()
+            if line:
+                try:
+                    yield json.loads(line)
+                except json.JSONDecodeError as e:
+                    print(f"Error decoing JSON on line: {e}")
+                    continue
+
+for data in parse_jsonl():
+    title = data.get("title", "")
+    text = data.get("text", "")
+
+    if text:
+        titles.append(title)
+        texts.append(text)
+
+corpus_embeddings = model.encode(texts, convert_to_tensor=True)
 
 # Simulates how searching could be handled in UNI repo
 while True:
@@ -34,7 +54,7 @@ while True:
 
     # Compares similarity between user input and samples
     scores = util.cos_sim(test_embedding, corpus_embeddings)
-    results = list(zip(corpus, scores[0].tolist()))
+    results = list(zip(titles, texts, scores[0].tolist()))
 
     # Tracks time elapsed, cpu + ram usage
     end_time = time.time() - start_time
@@ -43,8 +63,8 @@ while True:
 
     # Displays results
     print("\nSimilarity results:")
-    for doc, score in results:
-        print(f"{score:.4f} - {doc}")
+    for title, text, score in results:
+        print(f"{score:.4f} - {title}")
 
     # Displays performance
     print("\nPerformance:")
