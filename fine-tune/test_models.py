@@ -3,7 +3,6 @@ import psutil
 import os
 import time
 import json
-import math
 
 # Loads fine-tuned model, change depending on which model
 model = SentenceTransformer("pm-minilm-L12-v2_wp_all_lang_ft")
@@ -14,6 +13,8 @@ cpu_count = psutil.cpu_count(logical=True)
 
 # Testing sample, change in the future
 titles = []
+sections = []
+chunk_ids = []
 texts = []
 file_path = r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\fine-tune\wikipedia_dataset.jsonl"
 
@@ -30,13 +31,22 @@ def parse_jsonl():
 
 for data in parse_jsonl():
     title = data.get("title", "")
+    section = data.get("section", "")
+    chunk_id = data.get("chunk_id", 0)
     text = data.get("text", "")
 
     if text:
         titles.append(title)
+        sections.append(section)
+        chunk_ids.append(chunk_id)
         texts.append(text)
 
-corpus_embeddings = model.encode(texts, convert_to_tensor=True)
+corpus_embeddings = model.encode(
+    texts,
+    batch_size=32,
+    convert_to_tensor=True,
+    show_progress_bar=True
+)
 
 # Simulates how searching could be handled in UNI repo
 while True:
@@ -50,7 +60,7 @@ while True:
     ram_before = process.memory_info().rss / 1024 ** 2
 
     # Embeds user input
-    test_embedding = model.encode(test, convert_to_tensor=True)
+    test_embedding = model.encode([test], convert_to_tensor=True)
 
     # Compares similarity between user input and samples
     scores = util.cos_sim(test_embedding, corpus_embeddings)
@@ -64,7 +74,8 @@ while True:
     # Displays results
     print("\nSimilarity results:")
     for title, text, score in results:
-        print(f"{score:.4f} - {title}")
+        if score >= 0.5:
+            print(f"{score:.4f} - {title}")
 
     # Displays performance
     print("\nPerformance:")

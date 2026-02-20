@@ -4,6 +4,11 @@ from bs4 import BeautifulSoup
 from pyzim import Zim
 import pyzim.compression
 
+from sentence_transformers import SentenceTransformer
+
+embed_model = SentenceTransformer(r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\fine-tune\pm-minilm-L12-v2_wp_all_lang_ft")
+tokenizer = embed_model.tokenizer
+
 # Enable Zstandard support
 try:
     import zstandard
@@ -15,16 +20,74 @@ except ImportError:
 
 
 # Config (change paths to match your structure)
-ZIM_FILE = r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\wikipedia_fr_physics_mini_2025-10.zim"
-OUTPUT_FILE = r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\fine-tune\wp_fr_phys.jsonl"
+ZIM_FILE = r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\wikipedia_en_100_nopic_2025-09.zim"
+OUTPUT_FILE = r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\fine-tune\wikipedia_dataset.jsonl"
+
+def token_chunk(text, chunk_size=256, overlap=64):
+    tokens = tokenizer.encode(text, add_special_tokens=False)
+    chunks = []
+
+    start = 0
+    while start < len(tokens):
+        end = start + chunk_size
+        chunk_tokens = tokens[start:end]
+        chunk_text = tokenizer.decode(chunk_tokens)
+
+        chunks.append(chunk_text)
+        start += chunk_size - overlap
+
+    return chunks
 
 # Removes html tags, reference numbers and large whitespaces
-def clean_html(raw_html):
-    soup = BeautifulSoup(raw_html, "html.parser")
-    text = soup.get_text()
+def normalize(text):
     text = re.sub(r'\[[^\]]*\]', ' ', text)
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
+
+def extract_sections(raw_html):
+    soup = BeautifulSoup(raw_html, "html.parser")
+    sections = []
+
+    # Try to match Java logic (.mw-parser-output)
+    root = soup.select_one(".mw-parser-output")
+    if root is None:
+        root = soup.body
+
+    # Remove unwanted elements
+    for tag in root.select("script, style, sup, table, .navbox, .infobox, .thumb, .metadata"):
+        tag.decompose()
+
+    current_title = "Introduction"
+    current_text = []
+
+    for el in root.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li"]):
+        if el.name.startswith("h"):  # heading
+            # Save previous section
+            if current_text:
+                text = normalize(" ".join(current_text))
+                if len(text) >= 100:
+                    sections.append({
+                        "title": current_title,
+                        "text": text
+                    })
+
+            current_title = el.get_text(strip=True)
+            current_text = []
+        else:
+            text = el.get_text(strip=True)
+            if text:
+                current_text.append(text)
+
+    # Save final section
+    if current_text:
+        text = normalize(" ".join(current_text))
+        if len(text) >= 100:
+            sections.append({
+                "title": current_title,
+                "text": text
+            })
+
+    return sections
 
 # Extracts content from zim files and writes to a jsonl file
 dataset_count = 0
@@ -59,19 +122,26 @@ with open(ZIM_FILE, "rb") as f, open(OUTPUT_FILE, "w", encoding="utf-8") as out_
 
                 # Cleans text
                 try:
-                    cleaned_text = clean_html(raw_text)
+                    section_text = extract_sections(raw_text)
                 except Exception:
                     print("Error whhile trying to clean text")
                     continue
 
-                # Skip short text
-                if len(cleaned_text) < 100:
-                    continue
-
                 # Writes to jsonl file
-                print(f"Title: {entry.title}, Length: {len(cleaned_text)}")
-                out_file.write(json.dumps({"title": entry.title, "text": cleaned_text}, ensure_ascii=False) + "\n")
-                dataset_count += 1
+                for section in section_text:
+                    section_title = f"{entry.title} - {section['title']}"
+                    chunks = token_chunk(section["text"])
+
+                    for i, chunk in enumerate(chunks):
+                        out_file.write(json.dumps({
+                            "title": section_title,
+                            "section": section["title"],
+                            "chunk_id": i,
+                            "text": chunk
+                        }, ensure_ascii=False) + "\n")
+
+                    print(f"Title: {section_title}, Length: {len(section['text'])}")
+                    dataset_count += 1
 
             except Exception as e:
                 print(f"Entry: {entry.title} has an error")
