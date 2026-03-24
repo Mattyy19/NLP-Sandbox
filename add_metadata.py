@@ -5,8 +5,8 @@ from tensorflow_lite_support.metadata.python.metadata_writers import metadata_in
 from transformers import BertTokenizer
 
 # Paths to files
-MODEL_PATH = "minilm_ft_fp16.tflite"
-OUTPUT_PATH = "minilm_ft_fp16_with_metadata.tflite"
+MODEL_PATH = "minilm_L12_all_lang_ft_v2.11_fp16.tflite"
+OUTPUT_PATH = "minilm_L12_all_lang_ft_v2.11_fp16_wmetadata.tflite"
 VOCAB_PATH = "tokenizer/vocab.txt"
 
 interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)

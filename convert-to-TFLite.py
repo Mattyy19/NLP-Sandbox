@@ -6,9 +6,9 @@ import sys
 import traceback
 
 # 1. Define paths
-FT_MODEL_PATH = "fine-tune/pm-minilm-L12-v2_wp_all_lang_ft"
+FT_MODEL_PATH = "fine-tune/pm-minilm-L12-v2_wp_all_lang_v2.11_ft"
 TF_SAVED_MODEL_DIR = "saved_model_minilm_L12_ft"
-TFLITE_MODEL_PATH = "minilm_L12_all_lang_ft_fp16.tflite"
+TFLITE_MODEL_PATH = "minilm_L12_all_lang_ft_v2.11_fp16.tflite"
 
 def print_error(msg, err):
     print(msg)
@@ -37,7 +37,7 @@ try:
             super().__init__()
             self.model = tf_model
 
-        @tf.function(input_signature=[tf.TensorSpec(shape=[None, None], dtype=tf.int32)])
+        @tf.function(input_signature=[tf.TensorSpec(shape=[None, 128], dtype=tf.int32)])
         def __call__(self, input_ids):
             outputs = self.model(input_ids)
             embeddings = tf.reduce_mean(outputs.last_hidden_state, axis=1)
@@ -65,6 +65,9 @@ try:
 
     # Set the converter to use float16 for reduced model size and faster inference
     converter.target_spec.supported_types = [tf.float16]
+
+    converter.allow_custom_ops = True
+    converter.experimental_new_converter = True
 
     tflite_model = converter.convert()
 except Exception as e:
