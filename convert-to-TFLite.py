@@ -37,10 +37,11 @@ try:
             super().__init__()
             self.model = tf_model
 
-        @tf.function(input_signature=[tf.TensorSpec(shape=[None, 128], dtype=tf.int32)])
+        @tf.function(input_signature=[tf.TensorSpec(shape=[None, None], dtype=tf.int32)])
         def __call__(self, input_ids):
             outputs = self.model(input_ids)
             embeddings = tf.reduce_mean(outputs.last_hidden_state, axis=1)
+            embeddings = tf.ensure_shape(embeddings, [None, 384])
             return embeddings
 
     embedding_model = TFEmbeddingModel(tf_model)
@@ -68,6 +69,8 @@ try:
 
     converter.allow_custom_ops = True
     converter.experimental_new_converter = True
+    converter.experimental_enable_resource_variables = True
+    converter._experimental_lower_tensor_list_ops = False
 
     tflite_model = converter.convert()
 except Exception as e:
