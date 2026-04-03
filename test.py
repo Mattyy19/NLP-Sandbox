@@ -35,7 +35,7 @@ titles = []
 sections = []
 chunk_ids = []
 texts = []
-file_path = r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\fine-tune\wikipedia_dataset.jsonl"
+file_path = r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\fine-tune\wp_paragraph.jsonl"
 
 def parse_jsonl():
     with open(file_path, "r", encoding="utf-8") as file:
@@ -50,14 +50,10 @@ def parse_jsonl():
 
 for data in parse_jsonl():
     title = data.get("title", "")
-    section = data.get("section", "")
-    chunk_id = data.get("chunk_id", 0)
     text = data.get("text", "")
 
     if text:
         titles.append(title)
-        sections.append(section)
-        chunk_ids.append(chunk_id)
         texts.append(text)
 
 def preprocess(texts, max_length=128):
@@ -111,17 +107,32 @@ while True:
     # Compares similarity between user input and samples
     scores = cosine_similarity(test_embedding, corpus_embeddings)
     results = list(zip(titles, texts, scores[0].tolist()))
+    results.sort()
 
     # Tracks time elapsed, cpu + ram usage
     end_time = time.time() - start_time
     cpu_usage = process.cpu_percent(interval=0.1) / cpu_count
     ram_after = process.memory_info().rss / 1024 ** 2
 
+    count = 0
     # Displays results
     print("\nSimilarity results:")
     for title, text, score in results:
         if score >= 0.7:
             print(f"{score:.4f} - {title}")
+            count += 1
+
+    if count < 3:
+        for title, text, score in results:
+            if score >= 0.65:
+                print(f"{score:.4f} - {title}")
+                count += 1
+
+    if count < 3:
+        for title, text, score in results:
+            if score >= 0.6:
+                print(f"{score:.4f} - {title}")
+                count += 1
 
     # Displays performance
     print("\nPerformance:")
