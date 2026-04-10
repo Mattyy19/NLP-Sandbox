@@ -1,138 +1,77 @@
+from transformers import TFAutoModel
 import tensorflow as tf
-import numpy as np
+import os
+import sys
+import traceback
 
-SAVED_MODEL_DIR = "saved_model_minilm_L12_ft"
-TFLITE_OUT_AUDIT = "minilm_L12_all_lang_ft_float32_AUDIT.tflite"
+# 1. Define paths
+FT_MODEL_PATH = "fine-tune/pm-minilm-L12-v2_wp_all_lang_ft"
+TF_SAVED_MODEL_DIR = "saved_model_minilm_L12_ft_april2026"
+TFLITE_MODEL_PATH = "minilm_L12_all_lang_ft_float32_april2026.tflite"
 
-# ---------------------------------------------------------------------------
-# STEP 1: Inspect the SavedModel graph
-# Check what signatures and outputs are available, so we can verify that
-# mean-pooling and normalization are captured (not just raw token embeddings).
-# ---------------------------------------------------------------------------
-print("=" * 60)
-print("STEP 1: Inspecting SavedModel signatures")
-print("=" * 60)
+def print_error(msg, err):
+    print(msg)
+    traceback.print_exception(type(err), err, err.__traceback__)
+    sys.exit(1)
 
-loaded = tf.saved_model.load(SAVED_MODEL_DIR)
-print("Signatures found:", list(loaded.signatures.keys()))
+# 2. Load fine-tuned PyTorch model into TensorFlow
+print(f"Loading fine-tuned model from {FT_MODEL_PATH} ...")
 
-infer = loaded.signatures["serving_default"]
-print("\nInputs:")
-for k, v in infer.structured_input_signature[1].items():
-    print(f"  {k}: {v}")
-print("\nOutputs:")
-for k, v in infer.structured_outputs.items():
-    print(f"  {k}: shape={v.shape}, dtype={v.dtype}")
-
-# ---------------------------------------------------------------------------
-# STEP 2: Float32 baseline TFLite conversion (NO quantization)
-# If accuracy diverges here, the problem is in the graph export itself,
-# not in the float16 quantization step.
-# ---------------------------------------------------------------------------
-print("\n" + "=" * 60)
-print("STEP 2: Converting to float32 TFLite (no quantization)")
-print("=" * 60)
-
-converter = tf.lite.TFLiteConverter.from_saved_model(SAVED_MODEL_DIR)
-
-# No optimizations, no quantization, pure float32 baseline
-converter.target_spec.supported_ops = [
-    tf.lite.OpsSet.TFLITE_BUILTINS,
-    tf.lite.OpsSet.SELECT_TF_OPS
-]
-converter.experimental_enable_resource_variables = True
+if not os.path.exists(FT_MODEL_PATH):
+    print(f"Model directory '{FT_MODEL_PATH}' does not exist.")
+    sys.exit(1)
 
 try:
+    tf_model = TFAutoModel.from_pretrained(FT_MODEL_PATH, from_pt=True)
+except Exception as e:
+    print_error("Failed to load model.", e)
+
+# 3. Wrap model with mean pooling and replace GELU with tanh approximation
+#    (gelu_new uses tanh instead of erfc, which is natively supported by TFLite)
+try:
+    tf_model.config.hidden_act = "gelu_new"
+
+    class TFEmbeddingModel(tf.Module):
+        def __init__(self, tf_model):
+            super().__init__()
+            self.model = tf_model
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=[None, None], dtype=tf.int32)])
+        def __call__(self, input_ids):
+            outputs = self.model(input_ids)
+            embeddings = tf.reduce_mean(outputs.last_hidden_state, axis=1)
+            embeddings = tf.ensure_shape(embeddings, [None, 384])
+            return embeddings
+
+    embedding_model = TFEmbeddingModel(tf_model)
+except Exception as e:
+    print_error("Failed to wrap TensorFlow model.", e)
+
+# 4. Save as TensorFlow SavedModel
+print("Saving TensorFlow SavedModel...")
+try:
+    tf.saved_model.save(embedding_model, TF_SAVED_MODEL_DIR)
+except Exception as e:
+    print_error("Failed to save TensorFlow SavedModel.", e)
+
+print(f"SavedModel written to {TF_SAVED_MODEL_DIR}")
+
+# 5. Convert to TFLite (float32, no quantization)
+print("Converting SavedModel to TFLite...")
+try:
+    converter = tf.lite.TFLiteConverter.from_saved_model(TF_SAVED_MODEL_DIR)
+    converter.experimental_enable_resource_variables = True
+    converter.experimental_new_converter = True
+
     tflite_model = converter.convert()
 except Exception as e:
-    raise RuntimeError(f"Float32 TFLite conversion failed: {e}")
+    print_error("Failed during TFLite conversion.", e)
 
-with open(TFLITE_OUT_AUDIT, "wb") as f:
-    f.write(tflite_model)
+# 6. Save the .tflite file
+try:
+    with open(TFLITE_MODEL_PATH, "wb") as f:
+        f.write(tflite_model)
+except Exception as e:
+    print_error(f"Failed to write TFLite file to {TFLITE_MODEL_PATH}", e)
 
-print("Float32 TFLite model written:", TFLITE_OUT_AUDIT)
-
-# ---------------------------------------------------------------------------
-# STEP 3: Compare SavedModel vs float32 TFLite embeddings on sample inputs
-# Both should produce near-identical outputs (cosine sim ~1.0, MSE ~0.0).
-# If they don't, the SavedModel graph is missing pooling/normalization.
-# ---------------------------------------------------------------------------
-print("\n" + "=" * 60)
-print("STEP 3: Comparing SavedModel vs float32 TFLite embeddings")
-print("=" * 60)
-
-# Minimal dummy inputs
-SEQ_LEN = 128
-dummy_input_ids      = np.ones((2, SEQ_LEN), dtype=np.int32)
-dummy_attention_mask = np.ones((2, SEQ_LEN), dtype=np.int32)
-dummy_token_type_ids = np.zeros((2, SEQ_LEN), dtype=np.int32)
-
-# SavedModel inference
-sm_outputs = infer(
-    input_ids=tf.constant(dummy_input_ids),
-    attention_mask=tf.constant(dummy_attention_mask),
-    token_type_ids=tf.constant(dummy_token_type_ids),
-)
-# Take the first output tensor
-sm_key = list(sm_outputs.keys())[0]
-sm_embeddings = sm_outputs[sm_key].numpy()
-print(f"SavedModel output key: '{sm_key}', shape: {sm_embeddings.shape}")
-
-# Float32 TFLite inference
-interpreter = tf.lite.Interpreter(model_path=TFLITE_OUT_AUDIT)
-interpreter.allocate_tensors()
-
-input_details  = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
-
-print("\nTFLite input tensors:")
-for d in input_details:
-    print(f"  [{d['index']}] {d['name']:40s} shape={d['shape']} dtype={d['dtype'].__name__}")
-
-print("\nTFLite output tensors:")
-for d in output_details:
-    print(f"  [{d['index']}] {d['name']:40s} shape={d['shape']} dtype={d['dtype'].__name__}")
-
-# Map inputs by name
-input_map = {d["name"].split(":")[0].split("/")[-1]: d for d in input_details}
-
-for detail in input_details:
-    name = detail["name"].lower()
-    if "input_ids" in name:
-        interpreter.set_tensor(detail["index"], dummy_input_ids)
-    elif "attention_mask" in name:
-        interpreter.set_tensor(detail["index"], dummy_attention_mask)
-    elif "token_type_ids" in name:
-        interpreter.set_tensor(detail["index"], dummy_token_type_ids)
-
-interpreter.invoke()
-tflite_embeddings = interpreter.get_tensor(output_details[0]["index"])
-print(f"\nTFLite output shape: {tflite_embeddings.shape}")
-
-# Comparison metrics
-mse = np.mean((sm_embeddings - tflite_embeddings) ** 2)
-
-# Cosine similarity per sample
-def cosine_sim(a, b):
-    dot = np.sum(a * b, axis=-1)
-    norm = np.linalg.norm(a, axis=-1) * np.linalg.norm(b, axis=-1)
-    return dot / (norm + 1e-9)
-
-cos_sims = cosine_sim(sm_embeddings, tflite_embeddings)
-
-print("\n--- Accuracy Audit Results ---")
-print(f"MSE (SavedModel vs TFLite float32): {mse:.6f}")
-print(f"Cosine similarity per sample:       {cos_sims}")
-print()
-
-if mse < 1e-4 and np.all(cos_sims > 0.999):
-    print("   PASS: Float32 TFLite matches SavedModel. Accuracy loss is")
-    print("   coming from quantization (float16), not the graph export.")
-    print("   Next step: try dynamic range INT8 or 16x8 quantization instead.")
-else:
-    print("   FAIL: Float32 TFLite diverges from SavedModel.")
-    print("   The SavedModel graph likely excludes mean-pooling or L2")
-    print("   normalization. Re-export the model with those layers inside")
-    print("   the tf.function before converting to TFLite.")
-    print(f"   Output shapes — SavedModel: {sm_embeddings.shape}, "
-          f"TFLite: {tflite_embeddings.shape}")
+print(f"TFLite model written: {TFLITE_MODEL_PATH}")
