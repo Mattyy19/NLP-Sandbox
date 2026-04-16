@@ -6,9 +6,12 @@ import os
 import time
 import json
 
-interpreter = tf.lite.Interpreter(model_path="minilm_L12_all_lang_ft_v2.11_fp16_wmetadata.tflite")
+interpreter = tf.lite.Interpreter(model_path="minilm_L12_all_lang_ft_float32_april2026.tflite")
 
 input_details = interpreter.get_input_details()
+print("Input Details:")
+for inp in input_details:
+    print(inp)
 
 interpreter.resize_tensor_input(input_details[0]['index'], [1, 128])
 interpreter.allocate_tensors()
@@ -24,7 +27,19 @@ print("\nOutput Details:")
 for out in output_details:
     print(out)
 
-tokenizer = AutoTokenizer.from_pretrained(r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\fine-tune\pm-minilm-L12-v2_wp_all_lang_v2.11_ft")
+interpreter.resize_tensor_input(input_details[0]['index'], [32, 128])
+interpreter.allocate_tensors()
+print("Input Details:")
+for inp in input_details:
+    print(inp)
+
+interpreter.resize_tensor_input(input_details[0]['index'], [16, 128])
+interpreter.allocate_tensors()
+print("Input Details:")
+for inp in input_details:
+    print(inp)
+
+tokenizer = AutoTokenizer.from_pretrained("fine-tune\pm-minilm-L12-v2_wp_all_lang_v2.11_ft")
 
 # Gets system process info to track cpu + ram
 process = psutil.Process(os.getpid())
@@ -35,7 +50,7 @@ titles = []
 sections = []
 chunk_ids = []
 texts = []
-file_path = r"C:\Users\Matthew\IdeaProjects\NLP-Sandbox\fine-tune\wp_paragraph.jsonl"
+file_path = "fine-tune\wp_paragraph.jsonl"
 
 def parse_jsonl():
     with open(file_path, "r", encoding="utf-8") as file:
@@ -74,12 +89,14 @@ def embed_batch(texts):
         inputs = preprocess(batch)
         input_ids = inputs['input_ids'].astype('int32')
 
-        for j in range(len(batch)):
-            interpreter.set_tensor(input_details[0]['index'], input_ids[j:j+1])
-            interpreter.invoke()
+        interpreter.resize_tensor_input(input_details[0]['index'], [32, 128])
+        interpreter.allocate_tensors()
 
-            output = interpreter.get_tensor(output_details[0]['index'])
-            all_embeddings.append(output[0])
+        interpreter.set_tensor(input_details[0]['index'], input_ids)
+        interpreter.invoke()
+
+        output = interpreter.get_tensor(output_details[0]['index'])
+        all_embeddings.append(output)
 
     return np.array(all_embeddings)
 
@@ -107,7 +124,7 @@ while True:
     # Compares similarity between user input and samples
     scores = cosine_similarity(test_embedding, corpus_embeddings)
     results = list(zip(titles, texts, scores[0].tolist()))
-    results.sort()
+    results.sort(key=lambda x: x[2], reverse=True)
 
     # Tracks time elapsed, cpu + ram usage
     end_time = time.time() - start_time
@@ -119,19 +136,19 @@ while True:
     print("\nSimilarity results:")
     for title, text, score in results:
         if score >= 0.7:
-            print(f"{score:.4f} - {title}")
+            print(f"{score:.4f} - {title}: {text}")
             count += 1
 
     if count < 3:
         for title, text, score in results:
             if score >= 0.65:
-                print(f"{score:.4f} - {title}")
+                print(f"{score:.4f} - {title}: {text}")
                 count += 1
 
     if count < 3:
         for title, text, score in results:
             if score >= 0.6:
-                print(f"{score:.4f} - {title}")
+                print(f"{score:.4f} - {title}: {text}")
                 count += 1
 
     # Displays performance
