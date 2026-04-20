@@ -31,7 +31,7 @@ for data in dataset:
 random.shuffle(tests)
 
 # Load model and prepare for fine tuning
-model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+model = SentenceTransformer("pm-minilm-L12-v2_wp_all_lang_ft")
 train_dataloader = DataLoader(tests, shuffle=True, batch_size=8, num_workers=0)
 train_loss = losses.MultipleNegativesRankingLoss(model)
 
@@ -43,5 +43,5 @@ model.fit(
 )
 
 # Save model
-model.save("minilm-L6-v2_wikipedia100_ft")
+model.save("pm-minilm-L12-v2_wp_all_lang_2_ft")
 print("Model saved")

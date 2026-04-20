@@ -1,14 +1,14 @@
 # convert_to_tflite.py
-from transformers import AutoTokenizer, TFAutoModel
+from transformers import AutoTokenizer, TFAutoModel, AutoModel
 import tensorflow as tf
 import os
 import sys
 import traceback
 
 # 1. Define paths
-FT_MODEL_PATH = "minilm-L6-v2_wikipedia100_ft"
-TF_SAVED_MODEL_DIR = "saved_model_minilm_ft"
-TFLITE_MODEL_PATH = "minilm_ft_fp16.tflite"
+FT_MODEL_PATH = "fine-tune/pm-minilm-L12-v2_wp_all_lang_v2.11_ft"
+TF_SAVED_MODEL_DIR = "saved_model_minilm_L12_ft"
+TFLITE_MODEL_PATH = "minilm_L12_all_lang_ft_v2.11_fp16.tflite"
 
 def print_error(msg, err):
     print(msg)
@@ -25,6 +25,8 @@ if not os.path.exists(FT_MODEL_PATH):
 try:
     tf_model = TFAutoModel.from_pretrained(FT_MODEL_PATH, from_pt=True)
     tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+
+    tokenizer.save_pretrained("tokenizer/")
 except Exception as e:
     print_error("Failed to load model or tokenizer.", e)
 
@@ -39,6 +41,7 @@ try:
         def __call__(self, input_ids):
             outputs = self.model(input_ids)
             embeddings = tf.reduce_mean(outputs.last_hidden_state, axis=1)
+            embeddings = tf.ensure_shape(embeddings, [None, 384])
             return embeddings
 
     embedding_model = TFEmbeddingModel(tf_model)
@@ -63,6 +66,11 @@ try:
 
     # Set the converter to use float16 for reduced model size and faster inference
     converter.target_spec.supported_types = [tf.float16]
+
+    converter.allow_custom_ops = True
+    converter.experimental_new_converter = True
+    converter.experimental_enable_resource_variables = True
+    converter._experimental_lower_tensor_list_ops = False
 
     tflite_model = converter.convert()
 except Exception as e:
